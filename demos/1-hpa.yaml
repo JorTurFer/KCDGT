@@ -1,0 +1,89 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: demo-hpa
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: demo-hpa
+  name: demo-hpa
+  labels:
+    app: demo-hpa
+spec:
+  selector:
+    matchLabels:
+      app: demo-hpa
+  template:
+    metadata:
+      labels:
+        app: demo-hpa
+    spec:
+      containers:
+      - name: nginx
+        image: nginx
+        resources:
+          requests:
+            cpu: 100m
+            memory: 500Mi
+          limits:
+            cpu: 200m
+            memory: 600Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: demo-hpa
+  name: demo-hpa
+  namespace: demo-hpa
+spec:
+  ports:
+  - name: http
+    port: 80
+    protocol: TCP
+    targetPort: 80
+  selector:
+    app: demo-hpa
+---
+apiVersion: autoscaling/v1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: demo-hpa
+  namespace: demo-hpa
+spec:
+  maxReplicas: 10
+  minReplicas: 1
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: demo-hpa
+  targetCPUUtilizationPercentage: 50
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: demo-hpa
+  name: load-generator
+  labels:
+    app: load-generator
+spec:
+  replicas: 0
+  selector:
+    matchLabels:
+      app: load-generator
+  template:
+    metadata:
+      labels:
+        app: load-generator
+    spec:
+      containers:
+      - name: bombardier
+        image: alpine/bombardier
+        args:
+          - -c 
+          - "20000"
+          - -d 
+          - 120s 
+          - -l 
+          - http://demo-hpa.demo-hpa

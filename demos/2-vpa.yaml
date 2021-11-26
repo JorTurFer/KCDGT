@@ -1,0 +1,100 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: demo-vpa
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: demo-vpa
+  name: demo-vpa
+  labels:
+    app: demo-vpa
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: demo-vpa
+  template:
+    metadata:
+      labels:
+        app: demo-vpa
+    spec:
+      containers:
+      - name: nginx
+        image: nginx
+        resources:
+          requests:
+            cpu: 10m
+            memory: 500Mi
+          limits:
+            cpu: 50m
+            memory: 600Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: demo-vpa
+  name: demo-vpa
+  namespace: demo-vpa
+spec:
+  ports:
+  - name: http
+    port: 80
+    protocol: TCP
+    targetPort: 80
+  selector:
+    app: demo-vpa
+---
+apiVersion: autoscaling.k8s.io/v1beta2
+kind: VerticalPodAutoscaler
+metadata:
+  name: demo-vpa
+  namespace: demo-vpa
+spec:
+ targetRef:
+   apiVersion: apps/v1
+   kind: Deployment
+   name: demo-vpa
+ updatePolicy:
+  updateMode: "Auto"
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: demo-vpa
+  namespace: demo-vpa
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: demo-vpa
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: demo-vpa
+  name: load-generator
+  labels:
+    app: load-generator
+spec:
+  replicas: 0
+  selector:
+    matchLabels:
+      app: load-generator
+  template:
+    metadata:
+      labels:
+        app: load-generator
+    spec:
+      containers:
+      - name: bombardier
+        image: alpine/bombardier
+        args:
+          - -c 
+          - "20000"
+          - -d 
+          - 120s 
+          - -l 
+          - http://demo-vpa.demo-vpa
